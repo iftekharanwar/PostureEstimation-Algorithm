@@ -1,0 +1,6 @@
+license,file_name,coco_url,height,width,date_captured,flickr_url,id
+2,COCO_train2014_000000262145.jpg,http://images.cocodataset.org/train2014/COCO_train2014_000000262145.jpg,427,640,2013-11-20 02:07:55,http://farm8.staticflickr.com/7187/6967031859_5f08387bde_z.jpg,262145
+2,COCO_train2014_000000393224.jpg,http://images.cocodataset.org/train2014/COCO_train2014_000000393224.jpg,640,427,2013-11-18 02:29:39,http://farm9.staticflickr.com/8503/8356977703_647d20f05c_z.jpg,393224
+7,COCO_train2014_000000524297.jpg,http://images.cocodataset.org/train2014/COCO_train2014_000000524297.jpg,446,640,2013-11-18 11:56:12,http://farm4.staticflickr.com/3007/2552566879_0822a21ede_z.jpg,524297
+4,COCO_train2014_000000393227.jpg,http://images.cocodataset.org/train2014/COCO_train2014_000000393227.jpg,640,427,2013-11-20 07:38:16,http://farm4.staticflickr.com/3636/3692164714_6f181cbaf2_z.jpg,393227
+1,COCO_train2014_000000262146.jpg,http://images.cocodataset.org/train2014/COCO_train2014_000000262146.jpg,640,480,2013-11-19 23:07:16,http://farm6.staticflickr.com/5090/5341741494_1f653cdb80_z.jpg,262146
