@@ -4,12 +4,20 @@ import mediapipe as mp
 import csv
 import os
 import argparse
+from collections import namedtuple
+
+mp_pose = mp.solutions.pose
 
 def calculate_angle(p1, p2, p3):
     """
     Calculate the angle between three points.
     Points are given as tuples of (x, y) coordinates.
+    If any point is None, return 0 as the default angle.
     """
+    # Check if any of the points are None and return 0 if so
+    if p1 is None or p2 is None or p3 is None:
+        return 0
+
     # Get the coordinates of the points
     x1, y1 = p1
     x2, y2 = p2
@@ -30,200 +38,303 @@ def calculate_angle(p1, p2, p3):
 
     return angle_degrees
 
+def is_ulnar_deviation(wrist_landmarks, pinky_landmarks, elbow_landmarks):
+    # Calculate the angle between the wrist, pinky finger, and elbow
+    ulnar_deviation_angle = calculate_angle(wrist_landmarks, pinky_landmarks, elbow_landmarks)
+    # Check if the ulnar deviation angle exceeds the threshold for ulnar deviation
+    return ulnar_deviation_angle > 20  # Threshold angle for ulnar deviation
+
+def is_foot_supported(foot_landmark, hip_landmark):
+    # Check if the foot is below the hip, which would indicate it is supported
+    # This is a simplified assumption that the foot is supported if it is below the hip
+    # In a real-world scenario, additional checks would be needed for accuracy
+    # foot_landmark and hip_landmark are tuples of (x, y) coordinates
+    return foot_landmark[1] > hip_landmark[1]
+
+def is_shoulder_elevated(shoulder_landmarks, reference_landmarks):
+    """
+    Check if the shoulder is elevated.
+    This function compares the y-coordinate of the shoulder to a reference point (e.g., hip).
+    An elevated shoulder is typically higher (smaller y-value) than the reference.
+    """
+    shoulder_y = shoulder_landmarks[1]
+    reference_y = reference_landmarks[1]
+    return shoulder_y < reference_y
+
+def is_arm_abducted(shoulder_landmarks, elbow_landmarks):
+    """
+    Check if the arm is abducted.
+    This function calculates the horizontal distance between the shoulder and elbow.
+    A significant horizontal distance indicates abduction.
+    """
+    shoulder_x = shoulder_landmarks[0]
+    elbow_x = elbow_landmarks[0]
+    return abs(elbow_x - shoulder_x) > 0.1  # Threshold for abduction to be determined
+
+def is_leaning_or_supporting(shoulder_landmarks, elbow_landmarks):
+    """
+    Check if the person is leaning or if the arm is supported.
+    This function checks the vertical alignment of the shoulder and elbow.
+    Leaning or support is indicated by the elbow being vertically aligned or below the shoulder.
+    """
+    shoulder_y = shoulder_landmarks[1]
+    elbow_y = elbow_landmarks[1]
+    return elbow_y >= shoulder_y
+
+def extract_landmarks_from_csv_row(row):
+    """
+    Extract landmarks from a CSV row and create a pose_landmarks object.
+    The CSV columns are named with the pattern 'JointName.x', 'JointName.y', and 'JointName.z'.
+    """
+    class Landmarks:
+        def __init__(self):
+            self.landmark = {}
+
+    pose_landmarks = Landmarks()
+
+    # Mapping of CSV column names to MediaPipe PoseLandmark enum names
+    landmark_mapping = {
+        'RightShoulder': mp_pose.PoseLandmark.RIGHT_SHOULDER,
+        'RightElbow': mp_pose.PoseLandmark.RIGHT_ELBOW,
+        'RightWrist': mp_pose.PoseLandmark.RIGHT_WRIST,
+        'RightPinky': mp_pose.PoseLandmark.RIGHT_PINKY,
+        'LeftShoulder': mp_pose.PoseLandmark.LEFT_SHOULDER,
+        'LeftElbow': mp_pose.PoseLandmark.LEFT_ELBOW,
+        'LeftWrist': mp_pose.PoseLandmark.LEFT_WRIST,
+        'LeftPinky': mp_pose.PoseLandmark.LEFT_PINKY,
+        'RightHip': mp_pose.PoseLandmark.RIGHT_HIP,
+        'LeftHip': mp_pose.PoseLandmark.LEFT_HIP,
+        'RightKnee': mp_pose.PoseLandmark.RIGHT_KNEE,
+        'LeftKnee': mp_pose.PoseLandmark.LEFT_KNEE,
+        'RightAnkle': mp_pose.PoseLandmark.RIGHT_ANKLE,
+        'LeftAnkle': mp_pose.PoseLandmark.LEFT_ANKLE,
+        'RightFootIndex': mp_pose.PoseLandmark.RIGHT_FOOT_INDEX,
+        'LeftFootIndex': mp_pose.PoseLandmark.LEFT_FOOT_INDEX,
+        'Nose': mp_pose.PoseLandmark.NOSE,
+        'RightPinky': mp_pose.PoseLandmark.RIGHT_PINKY,
+        'LeftShoulder': mp_pose.PoseLandmark.LEFT_SHOULDER,
+        'LeftElbow': mp_pose.PoseLandmark.LEFT_ELBOW,
+        'LeftWrist': mp_pose.PoseLandmark.LEFT_WRIST,
+        'LeftPinky': mp_pose.PoseLandmark.LEFT_PINKY,
+        'RightHip': mp_pose.PoseLandmark.RIGHT_HIP,
+        'LeftHip': mp_pose.PoseLandmark.LEFT_HIP,
+        'RightKnee': mp_pose.PoseLandmark.RIGHT_KNEE,
+        'LeftKnee': mp_pose.PoseLandmark.LEFT_KNEE,
+        'RightAnkle': mp_pose.PoseLandmark.RIGHT_ANKLE,
+        'LeftAnkle': mp_pose.PoseLandmark.LEFT_ANKLE,
+        'RightFootIndex': mp_pose.PoseLandmark.RIGHT_FOOT_INDEX,
+        'LeftFootIndex': mp_pose.PoseLandmark.LEFT_FOOT_INDEX,
+        'Nose': mp_pose.PoseLandmark.NOSE,
+        # ... other mappings as needed
+    }
+
+    # Extract landmarks using the mapping
+    for landmark_name, pose_landmark in landmark_mapping.items():
+        x_column = f'{landmark_name}.x'
+        y_column = f'{landmark_name}.y'
+        z_column = f'{landmark_name}.z'
+        if x_column in row and y_column in row and z_column in row:
+            # Create a namedtuple to mimic the MediaPipe landmark structure
+            LandmarkPoint = namedtuple('LandmarkPoint', ['x', 'y', 'z'])
+            # Convert the CSV string values to float and create the LandmarkPoint
+            pose_landmarks.landmark[pose_landmark] = LandmarkPoint(
+                x=float(row[x_column]),
+                y=float(row[y_column]),
+                z=float(row[z_column])
+            )
+        else:
+            # If any of the required columns are missing, add a None value for the landmark
+            pose_landmarks.landmark[pose_landmark] = None
+
+    return pose_landmarks
+
 def calculate_ergonomic_risk(pose_landmarks):
     """
     Calculate ergonomic risk based on pose landmarks.
     This function will analyze the pose landmarks and calculate an ergonomic risk score
     based on criteria similar to the RULA method.
     """
+    # Initialize the ergonomic risk score
     ergonomic_risk_score = 0
-    # Define risky angle thresholds for different joints
-    ELBOW_RISKY_ANGLE = 150  # Example threshold for the elbow joint
-    ELBOW_RISK_POINTS = 1    # Example risk points for the elbow joint
 
-    # Define RULA scoring system for upper arm, lower arm, and wrist
-    UPPER_ARM_SCORES = {90: 3, 60: 2, 45: 1.5, 20: 1}  # Adjusted scores based on degrees
-    LOWER_ARM_SCORES = {60: 2, 45: 1.5, 20: 1}
-    WRIST_SCORES = {15: 3, 10: 2, 5: 1.5, 0: 1}
+    # Helper function to get a landmark if it exists, otherwise return None
+    def get_landmark(landmark):
+        return pose_landmarks.landmark.get(landmark)
 
-    # Define RULA scoring system for neck, trunk, and legs
-    NECK_SCORES = {25: 4, 20: 3, 15: 2, 10: 1.5, 0: 1}
-    TRUNK_SCORES = {25: 4, 20: 3, 15: 2, 10: 1.5, 0: 1}
-    LEG_SCORES = {2: 2, 1: 1}
+    # Right side
+    right_shoulder = get_landmark(mp_pose.PoseLandmark.RIGHT_SHOULDER)
+    right_elbow = get_landmark(mp_pose.PoseLandmark.RIGHT_ELBOW)
+    right_wrist = get_landmark(mp_pose.PoseLandmark.RIGHT_WRIST)
+    right_pinky = get_landmark(mp_pose.PoseLandmark.RIGHT_PINKY)
 
-    # Example of calculating risk score for one joint (e.g., elbow)
-    # Assume we have the coordinates for the left shoulder, elbow, and wrist
-    left_shoulder = pose_landmarks['left_shoulder']
-    left_elbow = pose_landmarks['left_elbow']
-    left_wrist = pose_landmarks['left_wrist']
+    right_elbow_angle = 0  # Initialize to default value
+    # Check if required landmarks are available before calculating angles
+    if right_shoulder and right_elbow and right_wrist:
+        right_elbow_angle = calculate_angle(right_shoulder, right_elbow, right_wrist)
+        print(f"Calculated right elbow angle: {right_elbow_angle}")  # Debug statement to check angle value
 
-    # Calculate the angle of the elbow joint
-    elbow_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
+        # Assign scores based on RULA criteria for the right upper arm
+        if 20 <= right_elbow_angle <= 45:
+            ergonomic_risk_score += 2
+            print("Right elbow angle between 20 and 45 degrees, adding 2 to risk score")
+        elif 45 < right_elbow_angle <= 90:
+            ergonomic_risk_score += 3
+            print("Right elbow angle between 45 and 90 degrees, adding 3 to risk score")
+        elif right_elbow_angle > 90:
+            ergonomic_risk_score += 4
+            print("Right elbow angle greater than 90 degrees, adding 4 to risk score")
+        else:
+            ergonomic_risk_score += 1
+            print("Right elbow angle less than 20 degrees, adding 1 to risk score")
+        print(f"Right upper arm score after evaluation: {ergonomic_risk_score}")  # Debug statement to check score increment
 
-    # Check if the elbow angle exceeds the risky threshold
-    if elbow_angle > ELBOW_RISKY_ANGLE:
-        ergonomic_risk_score += ELBOW_RISK_POINTS
+        # Adjust score for wrist posture based on RULA criteria
+        if right_wrist and right_pinky and is_ulnar_deviation(right_wrist, right_pinky, right_elbow):
+            ergonomic_risk_score += 1  # Add score for ulnar deviation
+            print("Ulnar deviation detected, adding 1 to risk score")
+        print(f"Right wrist score after evaluation: {ergonomic_risk_score}")  # Debug statement to check score increment
 
-    # Replace placeholder points with actual pose landmark data
-    # The following variables should be assigned the coordinates of the respective body parts
-    # These coordinates would typically come from the pose estimation model's output
-    left_hand_index = pose_landmarks['left_hand_index']
-    right_hand_index = pose_landmarks['right_hand_index']
-    left_shoulder = pose_landmarks['left_shoulder']
-    right_shoulder = pose_landmarks['right_shoulder']
-    left_elbow = pose_landmarks['left_elbow']
-    right_elbow = pose_landmarks['right_elbow']
-    left_wrist = pose_landmarks['left_wrist']
-    right_wrist = pose_landmarks['right_wrist']
-    left_hip = pose_landmarks['left_hip']
-    right_hip = pose_landmarks['right_hip']
-    left_knee = pose_landmarks['left_knee']
-    right_knee = pose_landmarks['right_knee']
-    left_ankle = pose_landmarks['left_ankle']
-    right_ankle = pose_landmarks['right_ankle']
+    # Adjust score for lower arm posture based on RULA criteria
+    lower_arm_angle_threshold = 60  # Threshold angle for lower arm posture
+    if right_elbow_angle and (right_elbow_angle < lower_arm_angle_threshold or right_elbow_angle > (180 - lower_arm_angle_threshold)):
+        ergonomic_risk_score += 1  # Add score if the lower arm angle is too acute or too obtuse
 
-    # Calculate the angle for the upper arm and determine the score
-    upper_arm_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
-    upper_arm_score_keys = [key for key in UPPER_ARM_SCORES if upper_arm_angle >= key]
-    upper_arm_score = UPPER_ARM_SCORES[min(upper_arm_score_keys)] if upper_arm_score_keys else 0
+    # Calculate neck angle for flexion/extension
+    left_shoulder = get_landmark(mp_pose.PoseLandmark.LEFT_SHOULDER)
+    right_shoulder = get_landmark(mp_pose.PoseLandmark.RIGHT_SHOULDER)
+    nose = get_landmark(mp_pose.PoseLandmark.NOSE)
 
-    # Calculate the angle for the lower arm and determine the score
-    lower_arm_angle = calculate_angle(left_elbow, left_wrist, left_hand_index)
-    lower_arm_score_keys = [key for key in LOWER_ARM_SCORES if lower_arm_angle >= key]
-    lower_arm_score = LOWER_ARM_SCORES[min(lower_arm_score_keys)] if lower_arm_score_keys else 0
+    if left_shoulder and right_shoulder and nose:
+        neck = ((left_shoulder.x + right_shoulder.x) / 2,
+                (left_shoulder.y + right_shoulder.y) / 2)
+        head = (nose.x, nose.y)
+        upper_back = (left_shoulder.x, left_shoulder.y)
+        neck_angle = calculate_angle(upper_back, neck, head)
 
-    # Calculate the angle for the wrist and determine the score
-    wrist_angle = calculate_angle(left_wrist, left_hand_index, right_hand_index)
-    wrist_score_keys = [key for key in WRIST_SCORES if wrist_angle >= key]
-    wrist_score = WRIST_SCORES[min(wrist_score_keys)] if wrist_score_keys else 0
+        # Neck scoring based on flexion/extension
+        if neck_angle < 10:
+            ergonomic_risk_score += 1
+        elif 10 <= neck_angle < 20:
+            ergonomic_risk_score += 2
+        else:
+            ergonomic_risk_score += 3
 
-    # Calculate the angle for the neck and determine the score
-    neck_angle = calculate_angle(left_shoulder, right_shoulder, left_hip)
-    neck_score_keys = [key for key in NECK_SCORES if neck_angle >= key]
-    neck_score = NECK_SCORES[min(neck_score_keys)] if neck_score_keys else 0
+    # Calculate trunk flexion/extension angle if landmarks are available
+    left_shoulder = get_landmark(mp_pose.PoseLandmark.LEFT_SHOULDER)
+    right_hip = get_landmark(mp_pose.PoseLandmark.RIGHT_HIP)
+    left_hip = get_landmark(mp_pose.PoseLandmark.LEFT_HIP)
+    if left_shoulder and right_hip and left_hip:
+        pelvis = ((left_hip.x + right_hip.x) / 2, (left_hip.y + right_hip.y) / 2)  # Midpoint of hips as pelvis
+        trunk_flexion_extension_angle = calculate_angle(left_shoulder, (left_shoulder.x, pelvis.y), pelvis)
+        # Trunk scoring based on flexion/extension and twist
+        if trunk_flexion_extension_angle < 10:
+            ergonomic_risk_score += 1
+        elif 10 <= trunk_flexion_extension_angle < 20:
+            ergonomic_risk_score += 2
+        else:
+            ergonomic_risk_score += 3
 
-    # Calculate the angle for the trunk and determine the score
-    trunk_angle = calculate_angle(left_hip, right_hip, left_knee)
-    trunk_score_keys = [key for key in TRUNK_SCORES if trunk_angle >= key]
-    trunk_score = TRUNK_SCORES[min(trunk_score_keys)] if trunk_score_keys else 0
+    # Calculate leg support score based on the position of the feet relative to the hips
+    right_foot = get_landmark(mp_pose.PoseLandmark.RIGHT_FOOT_INDEX)
+    left_foot = get_landmark(mp_pose.PoseLandmark.LEFT_FOOT_INDEX)
+    if right_foot and left_foot and right_hip and left_hip:
+        right_foot_supported = is_foot_supported(right_foot, right_hip)
+        left_foot_supported = is_foot_supported(left_foot, left_hip)
+        leg_support_score = 1 if right_foot_supported and left_foot_supported else 2
+        ergonomic_risk_score += leg_support_score
 
-    # Calculate the angle for the legs and determine the score
-    leg_angle = calculate_angle(left_knee, right_knee, left_ankle)
-    leg_score_keys = [key for key in LEG_SCORES if leg_angle >= key]
-    leg_score = LEG_SCORES[min(leg_score_keys)] if leg_score_keys else 0
+    # Adjust score for shoulder elevation, arm abduction, leaning, or arm support
+    if right_shoulder and right_hip:
+        reference_landmarks = (right_hip.x, right_hip.y)
+        if is_shoulder_elevated(right_shoulder, reference_landmarks):
+            ergonomic_risk_score += 1
+        if right_elbow and is_arm_abducted(right_shoulder, right_elbow):
+            ergonomic_risk_score += 1
+        if right_elbow and is_leaning_or_supporting(right_shoulder, right_elbow):
+            ergonomic_risk_score += 1  # Adjusted to add score if leaning or arm is supported
 
-    # Sum the scores for each body part to get an overall ergonomic risk score
-    overall_ergonomic_risk_score = sum([upper_arm_score, lower_arm_score, wrist_score, neck_score, trunk_score, leg_score])
+    # Continue with the rest of the ergonomic risk calculations...
+    # (The rest of the function remains unchanged)
 
-    # Determine the action level based on the overall ergonomic risk score
-    if overall_ergonomic_risk_score >= 7:
-        action_level = 'Investigate and implement change'
-    elif overall_ergonomic_risk_score >= 5:
-        action_level = 'Further investigation and change soon'
+    # Left side
+    left_elbow = get_landmark(mp_pose.PoseLandmark.LEFT_ELBOW)
+    left_wrist = get_landmark(mp_pose.PoseLandmark.LEFT_WRIST)
+    left_pinky = get_landmark(mp_pose.PoseLandmark.LEFT_PINKY)
+    left_elbow_angle = 0  # Initialize to default value
+    if left_shoulder and left_elbow and left_wrist:
+        left_elbow_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
+
+        # Assign scores based on RULA criteria for the left upper arm
+        if 20 <= left_elbow_angle <= 45:
+            ergonomic_risk_score += 2
+        elif 45 < left_elbow_angle <= 90:
+            ergonomic_risk_score += 3
+        elif left_elbow_angle > 90:
+            ergonomic_risk_score += 4
+        else:
+            ergonomic_risk_score += 1
+
+        # Adjust score for wrist posture based on RULA criteria
+        if left_wrist and left_pinky and is_ulnar_deviation(left_wrist, left_pinky, left_elbow):
+            ergonomic_risk_score += 1  # Add score for ulnar deviation
+
+    # Adjust score for shoulder elevation, arm abduction, leaning, or arm support
+    if left_shoulder and left_hip:
+        reference_landmarks = (left_hip.x, left_hip.y)
+        if is_shoulder_elevated(left_shoulder, reference_landmarks):
+            ergonomic_risk_score += 1
+        if left_elbow and is_arm_abducted(left_shoulder, left_elbow):
+            ergonomic_risk_score += 1
+        if left_elbow and is_leaning_or_supporting(left_shoulder, left_elbow):
+            ergonomic_risk_score += 1  # Adjusted to add score if leaning or arm is supported
+
+    # Determine action level based on ergonomic risk score
+    if ergonomic_risk_score >= 7:
+        action_level = "Immediate action required"
+    elif ergonomic_risk_score >= 5:
+        action_level = "Further investigation and change soon"
+    elif ergonomic_risk_score >= 3:
+        action_level = "Monitor and review"
     else:
-        action_level = 'Acceptable'
+        action_level = "Low risk - maintain current practices"
 
-    return overall_ergonomic_risk_score, action_level
+    return ergonomic_risk_score, action_level
 
-def main(input_video_path):
-    # Initialize MediaPipe Pose model
-    mp_pose = mp.solutions.pose
-    pose = mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=True,
-                        min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-    # Read the input video file
-    cap = cv2.VideoCapture(input_video_path)
-    if not cap.isOpened():
-        print("Error: Could not open video.")
-        return
-
-    # Initialize a list to store the ergonomic risk scores and action levels
-    ergonomic_data = []
-
-    # Process each frame
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Convert the frame to RGB
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Perform pose estimation
-        results = pose.process(frame_rgb)
-
-        # Check if any landmarks are detected
-        if results.pose_landmarks:
-            # Extract landmarks
-            landmarks = results.pose_landmarks.landmark
-
-            # Prepare the pose landmarks dictionary
-            pose_landmarks = {
-                'left_shoulder': (landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                                  landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y),
-                'right_shoulder': (landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-                                   landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y),
-                'left_elbow': (landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                               landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y),
-                'right_elbow': (landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
-                                landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y),
-                'left_wrist': (landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                               landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y),
-                'right_wrist': (landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
-                                landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y),
-                'left_hand_index': (landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].x,
-                                    landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].y),
-                'right_hand_index': (landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].x,
-                                     landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].y),
-                'left_hip': (landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
-                             landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y),
-                'right_hip': (landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
-                              landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y),
-                'left_knee': (landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
-                              landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y),
-                'right_knee': (landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
-                               landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y),
-                'left_ankle': (landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
-                               landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y),
-                'right_ankle': (landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
-                                landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y),
-                # Add other landmarks if needed
-            }
-            # Ensure all required landmarks are present before calculating risk
-            required_landmarks = ['left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
-                                  'left_wrist', 'right_wrist', 'left_hand_index', 'right_hand_index',
-                                  'left_hip', 'right_hip', 'left_knee', 'right_knee',
-                                  'left_ankle', 'right_ankle']
-            if all(key in pose_landmarks for key in required_landmarks):
-                # Calculate ergonomic risk score
-                ergonomic_risk_score, action_level = calculate_ergonomic_risk(pose_landmarks)
-                print(f"Ergonomic Risk Score: {ergonomic_risk_score}, Action Level: {action_level}")
-                # Append the score and action level to the list
-                ergonomic_data.append((ergonomic_risk_score, action_level))
-            else:
-                print("Error: Not all required landmarks were detected.")
-
-    cap.release()
-
-    # Check if the CSV file exists and is not empty
-    file_exists = os.path.isfile('ergonomic_risk_scores.csv') and os.path.getsize('ergonomic_risk_scores.csv') > 0
-
-    with open('ergonomic_risk_scores.csv', 'a', newline='') as file:
+def main(csv_file_path):
+    # Initialize CSV file for storing results
+    with open('ergonomic_risk_scores.csv', mode='w', newline='') as file:
         writer = csv.writer(file)
-        if not file_exists:
-            writer.writerow(['Ergonomic Risk Score', 'Action Level'])
-        writer.writerows(ergonomic_data)
+        writer.writerow(['Frame', 'Ergonomic Risk Score', 'Action Level'])
+
+        # Load the CSV file containing pose data
+        with open(csv_file_path, mode='r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            frame_number = 0
+            print("Starting CSV data processing loop...")  # Confirm entry into the loop
+
+            for row in csv_reader:
+                # Extract landmarks from the CSV row
+                pose_landmarks = extract_landmarks_from_csv_row(row)
+
+                # Calculate the ergonomic risk score using the extracted landmarks
+                ergonomic_risk_score, action_level = calculate_ergonomic_risk(pose_landmarks)
+
+                # Print the frame number, ergonomic risk score, and action level to the console
+                print(f"Frame: {frame_number}, Ergonomic Risk Score: {ergonomic_risk_score}, Action Level: {action_level}")
+
+                # Write the actual risk score and action level to the CSV
+                writer.writerow([frame_number, ergonomic_risk_score, action_level])
+                frame_number += 1
 
 if __name__ == '__main__':
-    # Set up command-line argument parsing
-    parser = argparse.ArgumentParser(description='Process a video and calculate ergonomic risk scores.')
-    parser.add_argument('video_path', help='Path to the input video file')
+    parser = argparse.ArgumentParser(description='Process a CSV file and calculate ergonomic risk scores.')
+    parser.add_argument('csv_file_path', help='Path to the input CSV file containing pose data')
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    # Expand the user's home directory if the tilde is used in the video path
-    video_path = os.path.expanduser(args.video_path)
+    # Expand the user's home directory if the tilde is used in the CSV file path
+    csv_file_path = os.path.expanduser(args.csv_file_path)
 
-    # Call the main function with the provided video path
-    main(video_path)
+    # Call the main function with the provided CSV file path
+    main(csv_file_path)
