@@ -19,9 +19,9 @@ def calculate_angle(p1, p2, p3):
         return 0
 
     # Get the coordinates of the points
-    x1, y1 = p1
-    x2, y2 = p2
-    x3, y3 = p3
+    x1, y1, _ = p1
+    x2, y2, _ = p2
+    x3, y3, _ = p3
 
     # Calculate the vectors from point 2 to point 1 and point 3
     vector21 = (x1 - x2, y1 - y2)
