@@ -108,3 +108,92 @@ def calculate_ergonomic_risk(pose_landmarks):
         action_level = 'Acceptable'
 
     return overall_ergonomic_risk_score, action_level
+
+import cv2
+import mediapipe as mp
+
+def main(input_video_path):
+    # Initialize MediaPipe Pose model
+    mp_pose = mp.solutions.pose
+    pose = mp_pose.Pose(static_image_mode=False, model_complexity=1, smooth_landmarks=True,
+                        min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+    # Read the input video file
+    cap = cv2.VideoCapture(input_video_path)
+    if not cap.isOpened():
+        print("Error: Could not open video.")
+        return
+
+    # Process each frame
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Convert the frame to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Perform pose estimation
+        results = pose.process(frame_rgb)
+
+        # Check if any landmarks are detected
+        if results.pose_landmarks:
+            # Extract landmarks
+            landmarks = results.pose_landmarks.landmark
+
+            # Prepare the pose landmarks dictionary
+            pose_landmarks = {
+                'left_shoulder': (landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                                  landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y),
+                'right_shoulder': (landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                                   landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y),
+                'left_elbow': (landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                               landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y),
+                'right_elbow': (landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
+                                landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y),
+                'left_wrist': (landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                               landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y),
+                'right_wrist': (landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
+                                landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y),
+                'left_hand_index': (landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].x,
+                                    landmarks[mp_pose.PoseLandmark.LEFT_INDEX.value].y),
+                'right_hand_index': (landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].x,
+                                     landmarks[mp_pose.PoseLandmark.RIGHT_INDEX.value].y),
+                'left_hip': (landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
+                             landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y),
+                'right_hip': (landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                              landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y),
+                'left_knee': (landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                              landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y),
+                'right_knee': (landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                               landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y),
+                'left_ankle': (landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                               landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y),
+                'right_ankle': (landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                                landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y),
+                # Add other landmarks if needed
+            }
+            # Ensure all required landmarks are present before calculating risk
+            required_landmarks = ['left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+                                  'left_wrist', 'right_wrist', 'left_hand_index', 'right_hand_index',
+                                  'left_hip', 'right_hip', 'left_knee', 'right_knee',
+                                  'left_ankle', 'right_ankle']
+            if all(key in pose_landmarks for key in required_landmarks):
+                # Calculate ergonomic risk score
+                ergonomic_risk_score, action_level = calculate_ergonomic_risk(pose_landmarks)
+                print(f"Ergonomic Risk Score: {ergonomic_risk_score}, Action Level: {action_level}")
+            else:
+                print("Error: Not all required landmarks were detected.")
+
+        # Display the frame with pose estimation (optional)
+        # cv2.imshow('Pose Estimation', frame)
+        # if cv2.waitKey(5) & 0xFF == 27:
+        #     break
+
+    cap.release()
+    # cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    # Placeholder for the input video path
+    input_video_path = 'path_to_input_video.mp4'
+    main(input_video_path)
