@@ -33,7 +33,12 @@ def calculate_angle(p1, p2, p3):
     magnitude23 = math.sqrt(vector23[0]**2 + vector23[1]**2)
 
     # Calculate the angle in radians and then convert to degrees
-    angle = math.acos(dot_product / (magnitude21 * magnitude23))
+    # Protect against division by zero in case of collinear points
+    try:
+        angle = math.acos(dot_product / (magnitude21 * magnitude23))
+    except ValueError:
+        # If the points are collinear, the angle is either 0 or 180 degrees
+        angle = math.pi if dot_product < 0 else 0
     angle_degrees = math.degrees(angle)
 
     return angle_degrees
@@ -175,33 +180,35 @@ def calculate_ergonomic_risk(pose_landmarks):
         print(f"Calculated right elbow angle: {right_elbow_angle}")  # Diagnostic print
 
         # Assign scores based on RULA criteria for the right upper arm
-        if 20 <= right_elbow_angle <= 45:
-            ergonomic_risk_score += 2
-            print("Right elbow angle between 20 and 45 degrees, adding 2 to risk score")  # Diagnostic print
-        elif 45 < right_elbow_angle <= 90:
-            ergonomic_risk_score += 3
-            print("Right elbow angle between 45 and 90 degrees, adding 3 to risk score")  # Diagnostic print
-        elif right_elbow_angle > 90:
-            ergonomic_risk_score += 4
-            print("Right elbow angle greater than 90 degrees, adding 4 to risk score")  # Diagnostic print
-        else:
+        # Adjusted to match RULA scoring system
+        if right_elbow_angle < 60:
             ergonomic_risk_score += 1
-            print("Right elbow angle less than 20 degrees, adding 1 to risk score")  # Diagnostic print
-        print(f"Right upper arm score after evaluation: {ergonomic_risk_score}")  # Diagnostic print
+        elif 60 <= right_elbow_angle < 100:
+            ergonomic_risk_score += 2
+        elif 100 <= right_elbow_angle < 140:
+            ergonomic_risk_score += 3
+        else:
+            ergonomic_risk_score += 4
+            print("Right elbow angle greater than 140 degrees, adding 4 to risk score")  # Diagnostic print
+        print(f"Right elbow angle: {right_elbow_angle}, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
         # Adjust score for wrist posture based on RULA criteria
+        # Adjusted to match RULA scoring system
         if right_wrist and right_pinky and is_ulnar_deviation(right_wrist, right_pinky, right_elbow):
-            ergonomic_risk_score += 1  # Add score for ulnar deviation
-            print("Ulnar deviation detected, adding 1 to risk score")  # Diagnostic print
-        print(f"Right wrist score after evaluation: {ergonomic_risk_score}")  # Diagnostic print
+            ergonomic_risk_score += 2  # Add score for ulnar deviation
+            print("Ulnar deviation detected, adding 2 to risk score")  # Diagnostic print
+            print(f"Ulnar deviation for right wrist detected, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Adjust score for lower arm posture based on RULA criteria
+    # Adjusted to match RULA scoring system
     lower_arm_angle_threshold = 60  # Threshold angle for lower arm posture
     if right_elbow_angle and (right_elbow_angle < lower_arm_angle_threshold or right_elbow_angle > (180 - lower_arm_angle_threshold)):
-        ergonomic_risk_score += 1  # Add score if the lower arm angle is too acute or too obtuse
-        print(f"Lower arm posture adjustment: {ergonomic_risk_score}")  # Diagnostic print
+        ergonomic_risk_score += 2  # Add score if the lower arm angle is too acute or too obtuse
+        print(f"Lower arm posture adjustment, adding 2 to risk score")  # Diagnostic print
+        print(f"Lower arm posture adjustment for right arm, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Calculate neck angle for flexion/extension
+    # Adjusted to match RULA scoring system
     left_shoulder = get_landmark(mp_pose.PoseLandmark.LEFT_SHOULDER)
     right_shoulder = get_landmark(mp_pose.PoseLandmark.RIGHT_SHOULDER)
     nose = get_landmark(mp_pose.PoseLandmark.NOSE)
@@ -214,15 +221,17 @@ def calculate_ergonomic_risk(pose_landmarks):
         neck_angle = calculate_angle(upper_back, neck, head)
 
         # Neck scoring based on flexion/extension
-        if neck_angle < 10:
+        # Adjusted to match RULA scoring system
+        if neck_angle < 20:
             ergonomic_risk_score += 1
-        elif 10 <= neck_angle < 20:
+        elif 20 <= neck_angle < 45:
             ergonomic_risk_score += 2
         else:
             ergonomic_risk_score += 3
-        print(f"Neck angle evaluation: {ergonomic_risk_score}")  # Diagnostic print
+        print(f"Neck angle: {neck_angle}, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Calculate trunk flexion/extension angle if landmarks are available
+    # Adjusted to match RULA scoring system
     left_shoulder = get_landmark(mp_pose.PoseLandmark.LEFT_SHOULDER)
     right_hip = get_landmark(mp_pose.PoseLandmark.RIGHT_HIP)
     left_hip = get_landmark(mp_pose.PoseLandmark.LEFT_HIP)
@@ -230,14 +239,17 @@ def calculate_ergonomic_risk(pose_landmarks):
         pelvis = ((left_hip.x + right_hip.x) / 2, (left_hip.y + right_hip.y) / 2)  # Midpoint of hips as pelvis
         trunk_flexion_extension_angle = calculate_angle(left_shoulder, (left_shoulder.x, pelvis.y), pelvis)
         # Trunk scoring based on flexion/extension and twist
-        if trunk_flexion_extension_angle < 10:
+        # Adjusted to match RULA scoring system
+        if trunk_flexion_extension_angle < 20:
             ergonomic_risk_score += 1
-        elif 10 <= trunk_flexion_extension_angle < 20:
+        elif 20 <= trunk_flexion_extension_angle < 45:
             ergonomic_risk_score += 2
         else:
             ergonomic_risk_score += 3
+        print(f"Trunk flexion/extension angle: {trunk_flexion_extension_angle}, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Calculate leg support score based on the position of the feet relative to the hips
+    # Adjusted to match RULA scoring system
     right_foot = get_landmark(mp_pose.PoseLandmark.RIGHT_FOOT_INDEX)
     left_foot = get_landmark(mp_pose.PoseLandmark.LEFT_FOOT_INDEX)
     if right_foot and left_foot and right_hip and left_hip:
@@ -245,17 +257,20 @@ def calculate_ergonomic_risk(pose_landmarks):
         left_foot_supported = is_foot_supported(left_foot, left_hip)
         leg_support_score = 1 if right_foot_supported and left_foot_supported else 2
         ergonomic_risk_score += leg_support_score
-        print(f"Leg support evaluation: {ergonomic_risk_score}")  # Diagnostic print
+        print(f"Leg support score added: {leg_support_score}, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Adjust score for shoulder elevation, arm abduction, leaning, or arm support
+    # Adjusted to match RULA scoring system
     if right_shoulder and right_hip:
         reference_landmarks = (right_hip.x, right_hip.y)
         if is_shoulder_elevated(right_shoulder, reference_landmarks):
-            ergonomic_risk_score += 1
+            ergonomic_risk_score += 2
         if right_elbow and is_arm_abducted(right_shoulder, right_elbow):
-            ergonomic_risk_score += 1
+            ergonomic_risk_score += 2
         if right_elbow and is_leaning_or_supporting(right_shoulder, right_elbow):
-            ergonomic_risk_score += 1  # Adjusted to add score if leaning or arm is supported
+            ergonomic_risk_score += 2  # Adjusted to add score if leaning or arm is supported
+
+        print(f"Shoulder elevation/abduction/leaning/support adjustment for right side, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Continue with the rest of the ergonomic risk calculations...
     # (The rest of the function remains unchanged)
@@ -291,6 +306,8 @@ def calculate_ergonomic_risk(pose_landmarks):
             ergonomic_risk_score += 1
         if left_elbow and is_leaning_or_supporting(left_shoulder, left_elbow):
             ergonomic_risk_score += 1  # Adjusted to add score if leaning or arm is supported
+
+        print(f"Shoulder elevation/abduction/leaning/support adjustment for left side, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Determine action level based on ergonomic risk score
     if ergonomic_risk_score >= 7:
