@@ -42,13 +42,13 @@ def calculate_ergonomic_risk(pose_landmarks):
     ELBOW_RISK_POINTS = 1    # Example risk points for the elbow joint
 
     # Define RULA scoring system for upper arm, lower arm, and wrist
-    UPPER_ARM_SCORES = {90: 3, 60: 2, 20: 1}  # Example scores based on degrees
-    LOWER_ARM_SCORES = {60: 2, 20: 1}
-    WRIST_SCORES = {15: 3, 0: 1}
+    UPPER_ARM_SCORES = {90: 3, 60: 2, 45: 1.5, 20: 1}  # Adjusted scores based on degrees
+    LOWER_ARM_SCORES = {60: 2, 45: 1.5, 20: 1}
+    WRIST_SCORES = {15: 3, 10: 2, 5: 1.5, 0: 1}
 
     # Define RULA scoring system for neck, trunk, and legs
-    NECK_SCORES = {20: 3, 10: 2, 0: 1}
-    TRUNK_SCORES = {20: 3, 10: 2, 0: 1}
+    NECK_SCORES = {25: 4, 20: 3, 15: 2, 10: 1.5, 0: 1}
+    TRUNK_SCORES = {25: 4, 20: 3, 15: 2, 10: 1.5, 0: 1}
     LEG_SCORES = {2: 2, 1: 1}
 
     # Example of calculating risk score for one joint (e.g., elbow)
@@ -89,23 +89,26 @@ def calculate_ergonomic_risk(pose_landmarks):
 
     # Calculate the angle for the lower arm and determine the score
     lower_arm_angle = calculate_angle(left_elbow, left_wrist, left_hand_index)
-    lower_arm_score = LOWER_ARM_SCORES[min([key for key in LOWER_ARM_SCORES if lower_arm_angle >= key])]
+    lower_arm_score_keys = [key for key in LOWER_ARM_SCORES if lower_arm_angle >= key]
+    lower_arm_score = LOWER_ARM_SCORES[min(lower_arm_score_keys)] if lower_arm_score_keys else 0
 
     # Calculate the angle for the wrist and determine the score
     wrist_angle = calculate_angle(left_wrist, left_hand_index, right_hand_index)
-    wrist_score = WRIST_SCORES[min([key for key in WRIST_SCORES if wrist_angle >= key])]
+    wrist_score_keys = [key for key in WRIST_SCORES if wrist_angle >= key]
+    wrist_score = WRIST_SCORES[min(wrist_score_keys)] if wrist_score_keys else 0
 
     # Calculate the angle for the neck and determine the score
     neck_angle = calculate_angle(left_shoulder, right_shoulder, left_hip)
-    neck_score = NECK_SCORES[min([key for key in NECK_SCORES if neck_angle >= key])]
+    neck_score_keys = [key for key in NECK_SCORES if neck_angle >= key]
+    neck_score = NECK_SCORES[min(neck_score_keys)] if neck_score_keys else 0
 
     # Calculate the angle for the trunk and determine the score
     trunk_angle = calculate_angle(left_hip, right_hip, left_knee)
-    trunk_score = TRUNK_SCORES[min([key for key in TRUNK_SCORES if trunk_angle >= key])]
+    trunk_score_keys = [key for key in TRUNK_SCORES if trunk_angle >= key]
+    trunk_score = TRUNK_SCORES[min(trunk_score_keys)] if trunk_score_keys else 0
 
     # Calculate the angle for the legs and determine the score
     leg_angle = calculate_angle(left_knee, right_knee, left_ankle)
-    # Check if the leg angle meets any of the defined thresholds, otherwise assign a default score
     leg_score_keys = [key for key in LEG_SCORES if leg_angle >= key]
     leg_score = LEG_SCORES[min(leg_score_keys)] if leg_score_keys else 0
 
