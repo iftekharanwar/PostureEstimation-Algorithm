@@ -222,5 +222,8 @@ if __name__ == '__main__':
     # Parse the command-line arguments
     args = parser.parse_args()
 
+    # Expand the user's home directory if the tilde is used in the video path
+    video_path = os.path.expanduser(args.video_path)
+
     # Call the main function with the provided video path
-    main(args.video_path)
+    main(video_path)
