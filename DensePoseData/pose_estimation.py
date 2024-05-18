@@ -99,38 +99,15 @@ def extract_landmarks_from_csv_row(row):
 
     # Mapping of CSV column names to MediaPipe PoseLandmark enum names
     landmark_mapping = {
-        'RightShoulder': mp_pose.PoseLandmark.RIGHT_SHOULDER,
-        'RightElbow': mp_pose.PoseLandmark.RIGHT_ELBOW,
-        'RightWrist': mp_pose.PoseLandmark.RIGHT_WRIST,
-        'RightPinky': mp_pose.PoseLandmark.RIGHT_PINKY,
-        'LeftShoulder': mp_pose.PoseLandmark.LEFT_SHOULDER,
-        'LeftElbow': mp_pose.PoseLandmark.LEFT_ELBOW,
-        'LeftWrist': mp_pose.PoseLandmark.LEFT_WRIST,
-        'LeftPinky': mp_pose.PoseLandmark.LEFT_PINKY,
-        'RightHip': mp_pose.PoseLandmark.RIGHT_HIP,
-        'LeftHip': mp_pose.PoseLandmark.LEFT_HIP,
-        'RightKnee': mp_pose.PoseLandmark.RIGHT_KNEE,
-        'LeftKnee': mp_pose.PoseLandmark.LEFT_KNEE,
-        'RightAnkle': mp_pose.PoseLandmark.RIGHT_ANKLE,
-        'LeftAnkle': mp_pose.PoseLandmark.LEFT_ANKLE,
-        'RightFootIndex': mp_pose.PoseLandmark.RIGHT_FOOT_INDEX,
-        'LeftFootIndex': mp_pose.PoseLandmark.LEFT_FOOT_INDEX,
-        'Nose': mp_pose.PoseLandmark.NOSE,
-        'RightPinky': mp_pose.PoseLandmark.RIGHT_PINKY,
-        'LeftShoulder': mp_pose.PoseLandmark.LEFT_SHOULDER,
-        'LeftElbow': mp_pose.PoseLandmark.LEFT_ELBOW,
-        'LeftWrist': mp_pose.PoseLandmark.LEFT_WRIST,
-        'LeftPinky': mp_pose.PoseLandmark.LEFT_PINKY,
-        'RightHip': mp_pose.PoseLandmark.RIGHT_HIP,
-        'LeftHip': mp_pose.PoseLandmark.LEFT_HIP,
-        'RightKnee': mp_pose.PoseLandmark.RIGHT_KNEE,
-        'LeftKnee': mp_pose.PoseLandmark.LEFT_KNEE,
-        'RightAnkle': mp_pose.PoseLandmark.RIGHT_ANKLE,
-        'LeftAnkle': mp_pose.PoseLandmark.LEFT_ANKLE,
-        'RightFootIndex': mp_pose.PoseLandmark.RIGHT_FOOT_INDEX,
-        'LeftFootIndex': mp_pose.PoseLandmark.LEFT_FOOT_INDEX,
-        'Nose': mp_pose.PoseLandmark.NOSE,
-        # ... other mappings as needed
+        'RightShoulder': mp_pose.PoseLandmark.RIGHT_SHOULDER,  # Add mapping for right shoulder
+        'RightArm': mp_pose.PoseLandmark.RIGHT_ELBOW,
+        'RightForeArm': mp_pose.PoseLandmark.RIGHT_WRIST,
+        'RightHand': mp_pose.PoseLandmark.RIGHT_INDEX,  # Assuming RightHand corresponds to RIGHT_INDEX
+        'LeftShoulder': mp_pose.PoseLandmark.LEFT_SHOULDER,  # Add mapping for left shoulder
+        'LeftArm': mp_pose.PoseLandmark.LEFT_ELBOW,
+        'LeftForeArm': mp_pose.PoseLandmark.LEFT_WRIST,
+        'LeftHand': mp_pose.PoseLandmark.LEFT_INDEX,  # Assuming LeftHand corresponds to LEFT_INDEX
+        # ... other mappings as needed, following the same pattern
     }
 
     # Extract landmarks using the mapping
@@ -173,6 +150,9 @@ def calculate_ergonomic_risk(pose_landmarks):
     right_wrist = get_landmark(mp_pose.PoseLandmark.RIGHT_WRIST)
     right_pinky = get_landmark(mp_pose.PoseLandmark.RIGHT_PINKY)
 
+    # Diagnostic print to confirm the presence of landmarks
+    print(f"Right shoulder: {right_shoulder}, Right elbow: {right_elbow}, Right wrist: {right_wrist}, Right pinky: {right_pinky}")
+
     right_elbow_angle = 0  # Initialize to default value
     # Check if required landmarks are available before calculating angles
     if right_shoulder and right_elbow and right_wrist:
@@ -183,21 +163,26 @@ def calculate_ergonomic_risk(pose_landmarks):
         # Adjusted to match RULA scoring system
         if right_elbow_angle < 60:
             ergonomic_risk_score += 1
+            print("Right elbow angle < 60, adding 1 to risk score")  # Diagnostic print
         elif 60 <= right_elbow_angle < 100:
             ergonomic_risk_score += 2
+            print("60 <= Right elbow angle < 100, adding 2 to risk score")  # Diagnostic print
         elif 100 <= right_elbow_angle < 140:
             ergonomic_risk_score += 3
+            print("100 <= Right elbow angle < 140, adding 3 to risk score")  # Diagnostic print
         else:
             ergonomic_risk_score += 4
-            print("Right elbow angle greater than 140 degrees, adding 4 to risk score")  # Diagnostic print
+            print("Right elbow angle >= 140, adding 4 to risk score")  # Diagnostic print
         print(f"Right elbow angle: {right_elbow_angle}, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
         # Adjust score for wrist posture based on RULA criteria
         # Adjusted to match RULA scoring system
         if right_wrist and right_pinky and is_ulnar_deviation(right_wrist, right_pinky, right_elbow):
             ergonomic_risk_score += 2  # Add score for ulnar deviation
-            print("Ulnar deviation detected, adding 2 to risk score")  # Diagnostic print
-            print(f"Ulnar deviation for right wrist detected, Ergonomic risk score updated to: {ergonomic_risk_score}")
+            print("Ulnar deviation detected for right wrist, adding 2 to risk score")  # Diagnostic print
+        else:
+            print("No ulnar deviation detected for right wrist, no addition to risk score")  # Diagnostic print
+        print(f"Right wrist posture check, Ergonomic risk score updated to: {ergonomic_risk_score}")
 
     # Adjust score for lower arm posture based on RULA criteria
     # Adjusted to match RULA scoring system
