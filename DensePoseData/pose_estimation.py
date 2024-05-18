@@ -1,4 +1,9 @@
 import math
+import cv2
+import mediapipe as mp
+import csv
+import os
+import argparse
 
 def calculate_angle(p1, p2, p3):
     """
@@ -62,39 +67,47 @@ def calculate_ergonomic_risk(pose_landmarks):
     # Replace placeholder points with actual pose landmark data
     # The following variables should be assigned the coordinates of the respective body parts
     # These coordinates would typically come from the pose estimation model's output
-    left_hand = pose_landmarks['left_hand_index']
-    left_fingers = pose_landmarks['left_fingers']
-    head = pose_landmarks['head']
-    neck = pose_landmarks['neck']
-    upper_back = pose_landmarks['upper_back']
-    lower_back = pose_landmarks['lower_back']
-    hips = pose_landmarks['hips']
-    knees = pose_landmarks['knees']
-    ankles = pose_landmarks['ankles']
+    left_hand_index = pose_landmarks['left_hand_index']
+    right_hand_index = pose_landmarks['right_hand_index']
+    left_shoulder = pose_landmarks['left_shoulder']
+    right_shoulder = pose_landmarks['right_shoulder']
+    left_elbow = pose_landmarks['left_elbow']
+    right_elbow = pose_landmarks['right_elbow']
+    left_wrist = pose_landmarks['left_wrist']
+    right_wrist = pose_landmarks['right_wrist']
+    left_hip = pose_landmarks['left_hip']
+    right_hip = pose_landmarks['right_hip']
+    left_knee = pose_landmarks['left_knee']
+    right_knee = pose_landmarks['right_knee']
+    left_ankle = pose_landmarks['left_ankle']
+    right_ankle = pose_landmarks['right_ankle']
 
     # Calculate the angle for the upper arm and determine the score
     upper_arm_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
-    upper_arm_score = UPPER_ARM_SCORES[min([key for key in UPPER_ARM_SCORES if upper_arm_angle >= key])]
+    upper_arm_score_keys = [key for key in UPPER_ARM_SCORES if upper_arm_angle >= key]
+    upper_arm_score = UPPER_ARM_SCORES[min(upper_arm_score_keys)] if upper_arm_score_keys else 0
 
     # Calculate the angle for the lower arm and determine the score
-    lower_arm_angle = calculate_angle(left_elbow, left_wrist, left_hand)
+    lower_arm_angle = calculate_angle(left_elbow, left_wrist, left_hand_index)
     lower_arm_score = LOWER_ARM_SCORES[min([key for key in LOWER_ARM_SCORES if lower_arm_angle >= key])]
 
     # Calculate the angle for the wrist and determine the score
-    wrist_angle = calculate_angle(left_wrist, left_hand, left_fingers)
+    wrist_angle = calculate_angle(left_wrist, left_hand_index, right_hand_index)
     wrist_score = WRIST_SCORES[min([key for key in WRIST_SCORES if wrist_angle >= key])]
 
     # Calculate the angle for the neck and determine the score
-    neck_angle = calculate_angle(head, neck, upper_back)
+    neck_angle = calculate_angle(left_shoulder, right_shoulder, left_hip)
     neck_score = NECK_SCORES[min([key for key in NECK_SCORES if neck_angle >= key])]
 
     # Calculate the angle for the trunk and determine the score
-    trunk_angle = calculate_angle(upper_back, lower_back, hips)
+    trunk_angle = calculate_angle(left_hip, right_hip, left_knee)
     trunk_score = TRUNK_SCORES[min([key for key in TRUNK_SCORES if trunk_angle >= key])]
 
     # Calculate the angle for the legs and determine the score
-    leg_angle = calculate_angle(hips, knees, ankles)
-    leg_score = LEG_SCORES[min([key for key in LEG_SCORES if leg_angle >= key])]
+    leg_angle = calculate_angle(left_knee, right_knee, left_ankle)
+    # Check if the leg angle meets any of the defined thresholds, otherwise assign a default score
+    leg_score_keys = [key for key in LEG_SCORES if leg_angle >= key]
+    leg_score = LEG_SCORES[min(leg_score_keys)] if leg_score_keys else 0
 
     # Sum the scores for each body part to get an overall ergonomic risk score
     overall_ergonomic_risk_score = sum([upper_arm_score, lower_arm_score, wrist_score, neck_score, trunk_score, leg_score])
@@ -109,9 +122,6 @@ def calculate_ergonomic_risk(pose_landmarks):
 
     return overall_ergonomic_risk_score, action_level
 
-import cv2
-import mediapipe as mp
-
 def main(input_video_path):
     # Initialize MediaPipe Pose model
     mp_pose = mp.solutions.pose
@@ -123,6 +133,9 @@ def main(input_video_path):
     if not cap.isOpened():
         print("Error: Could not open video.")
         return
+
+    # Initialize a list to store the ergonomic risk scores and action levels
+    ergonomic_data = []
 
     # Process each frame
     while cap.isOpened():
@@ -182,18 +195,29 @@ def main(input_video_path):
                 # Calculate ergonomic risk score
                 ergonomic_risk_score, action_level = calculate_ergonomic_risk(pose_landmarks)
                 print(f"Ergonomic Risk Score: {ergonomic_risk_score}, Action Level: {action_level}")
+                # Append the score and action level to the list
+                ergonomic_data.append((ergonomic_risk_score, action_level))
             else:
                 print("Error: Not all required landmarks were detected.")
 
-        # Display the frame with pose estimation (optional)
-        # cv2.imshow('Pose Estimation', frame)
-        # if cv2.waitKey(5) & 0xFF == 27:
-        #     break
-
     cap.release()
-    # cv2.destroyAllWindows()
+
+    # Check if the CSV file exists and is not empty
+    file_exists = os.path.isfile('ergonomic_risk_scores.csv') and os.path.getsize('ergonomic_risk_scores.csv') > 0
+
+    with open('ergonomic_risk_scores.csv', 'a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['Ergonomic Risk Score', 'Action Level'])
+        writer.writerows(ergonomic_data)
 
 if __name__ == '__main__':
-    # Placeholder for the input video path
-    input_video_path = 'path_to_input_video.mp4'
-    main(input_video_path)
+    # Set up command-line argument parsing
+    parser = argparse.ArgumentParser(description='Process a video and calculate ergonomic risk scores.')
+    parser.add_argument('video_path', help='Path to the input video file')
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    # Call the main function with the provided video path
+    main(args.video_path)
